@@ -1,6 +1,8 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
-function VoiceButton({ onTranscript }) {
+function VoiceButton({ onTranscript, language }) {
+
+    const [listening, setListening] = useState(false);
 
     useEffect(() => {
 
@@ -14,11 +16,31 @@ function VoiceButton({ onTranscript }) {
 
         recognition.continuous = false;
         recognition.interimResults = false;
-        recognition.lang = "en-US";
+        recognition.lang = language || "en-US";
+
+        recognition.onstart = () => {
+            setListening(true);
+        };
+
+        recognition.onend = () => {
+            setListening(false);
+        };
+
+        recognition.onerror = () => {
+            setListening(false);
+        };
+
+        recognition.onresult = (event) => {
+
+            const transcript = event.results[0][0].transcript;
+
+            onTranscript(transcript);
+
+        };
 
         window.recognition = recognition;
 
-    }, []);
+    }, [language, onTranscript]);
 
     const startListening = () => {
 
@@ -27,28 +49,21 @@ function VoiceButton({ onTranscript }) {
             alert("Speech Recognition not supported.");
 
             return;
+
         }
 
         window.recognition.start();
-
-        window.recognition.onresult = (event) => {
-
-            const transcript =
-                event.results[0][0].transcript;
-
-            onTranscript(transcript);
-
-        };
 
     };
 
     return (
 
         <button
-            className="voice-btn"
+            className={`voice-btn ${listening ? "listening" : ""}`}
             onClick={startListening}
+            disabled={listening}
         >
-            🎤 Start Speaking
+            {listening ? "🎤 Listening..." : "🎤 Start Speaking"}
         </button>
 
     );

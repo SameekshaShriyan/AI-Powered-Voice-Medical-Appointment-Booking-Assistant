@@ -2,13 +2,21 @@ function Message({ sender, text }) {
 
     return (
 
-        <div className={sender === "user" ? "user" : "ai"}>
+        <div className={`message ${sender}`}>
 
-            <strong>
-                {sender === "user" ? "You" : "AI"}
-            </strong>
+            <div className="bubble">
 
-            <p>{text}</p>
+                <div className="sender">
+
+                    {sender === "user"
+                        ? "👤 You"
+                        : "🤖 Receptionist"}
+
+                </div>
+
+                {text}
+
+            </div>
 
         </div>
 

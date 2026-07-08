@@ -1,13 +1,22 @@
+import { useEffect, useRef } from "react";
 import Message from "./Message";
 
 function ChatBox({ messages }) {
+
+    const bottomRef = useRef(null);
+
+    useEffect(() => {
+        bottomRef.current?.scrollIntoView({
+            behavior:"smooth"
+        });
+    }, [messages]);
 
     return (
 
         <div className="chat-box">
 
             {
-                messages.map((msg, index) => (
+                messages.map((msg,index)=>
 
                     <Message
                         key={index}
@@ -15,8 +24,10 @@ function ChatBox({ messages }) {
                         text={msg.text}
                     />
 
-                ))
+                )
             }
+
+            <div ref={bottomRef}></div>
 
         </div>
 

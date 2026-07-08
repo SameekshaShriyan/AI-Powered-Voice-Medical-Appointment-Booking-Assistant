@@ -7,8 +7,10 @@ import "./App.css";
 function App() {
 
   const [messages, setMessages] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [input, setInput] = useState("");
-
+  const [language, setLanguage] = useState("en-US");
+  
   const sendMessage = async () => {
 
     if (!input.trim()) return;
@@ -21,9 +23,9 @@ function App() {
     setMessages(prev => [...prev, userMsg]);
 
     try {
-
+setLoading(true);
   const res = await api.post("/ai", {
-    message: input
+    message: input,language
   });
 
   const aiMsg = {
@@ -36,11 +38,11 @@ function App() {
   // 🔊 Speak AI response
   const aiResponse = res.data.message;
   const utterance = new SpeechSynthesisUtterance(aiResponse);
-  utterance.lang = "en-US";
+  utterance.lang = language;
   speechSynthesis.speak(utterance);
 
 } catch (err) {
-
+setLoading(false);
   setMessages(prev => [...prev, {
     sender: "ai",
     text: "Server Error"
@@ -65,7 +67,7 @@ const handleVoiceInput = async (transcript) => {
   try {
 
     const res = await api.post("/ai", {
-      message: transcript
+      message: transcript,language
     });
 
     const aiMsg = {
@@ -76,7 +78,7 @@ const handleVoiceInput = async (transcript) => {
     setMessages(prev => [...prev, aiMsg]);
 
     const utterance = new SpeechSynthesisUtterance(res.data.message);
-    utterance.lang = "en-US";
+    utterance.lang = language;
     speechSynthesis.speak(utterance);
 
   } catch (err) {
@@ -95,9 +97,31 @@ const handleVoiceInput = async (transcript) => {
 
     <div className="container">
 
-      <h1>🏥 AI Medical Assistant</h1>
+     <div className="header">
 
-      <ChatBox messages={messages} />
+  <h1>🏥 AI Medical Assistant</h1>
+
+  <div className="language-selector">
+
+    <label>🌐</label>
+
+    <select
+      value={language}
+      onChange={(e) => setLanguage(e.target.value)}
+    >
+      <option value="en-US">English</option>
+      <option value="hi-IN">Hindi</option>
+      <option value="kn-IN">Kannada</option>
+    </select>
+
+  </div>
+
+</div>
+
+      <ChatBox
+    messages={messages}
+    loading={loading}
+/>
 
       <div className="input-area">
 
@@ -107,13 +131,18 @@ const handleVoiceInput = async (transcript) => {
           placeholder="Ask something..."
         />
 
-        <button onClick={sendMessage}>
-          Send
+       <button
+    className="send-btn"
+    onClick={sendMessage}
+>
         </button>
 
       </div>
 
-      <VoiceButton onTranscript={handleVoiceInput} />
+      <VoiceButton
+    onTranscript={handleVoiceInput}
+    language={language}
+/>
 
     </div>
 
