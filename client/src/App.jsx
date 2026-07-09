@@ -10,139 +10,183 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [input, setInput] = useState("");
   const [language, setLanguage] = useState("en-US");
-  
+  const [voiceMode, setVoiceMode] = useState(false);
+
+  const speakResponse = (text) => {
+
+    if (!text) return;
+
+    speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(text);
+
+    utterance.lang = language;
+
+    utterance.onend = () => {
+
+      if (voiceMode && window.recognition) {
+
+        try {
+          window.recognition.start();
+        } catch {}
+
+      }
+
+    };
+
+    speechSynthesis.speak(utterance);
+
+  };
+
   const sendMessage = async () => {
 
     if (!input.trim()) return;
 
-    const userMsg = {
-      sender: "user",
-      text: input
-    };
+    setMessages(prev => [
+      ...prev,
+      {
+        sender: "user",
+        text: input
+      }
+    ]);
 
-    setMessages(prev => [...prev, userMsg]);
+    setLoading(true);
 
     try {
-setLoading(true);
-  const res = await api.post("/ai", {
-    message: input,language
-  });
 
-  const aiMsg = {
-    sender: "ai",
-    text: res.data.message || JSON.stringify(res.data)
-  };
+      const res = await api.post("/ai", {
+        message: input,
+        language
+      });
 
-  setMessages(prev => [...prev, aiMsg]);
+      setMessages(prev => [
+        ...prev,
+        {
+          sender: "ai",
+          text: res.data.message
+        }
+      ]);
 
-  // 🔊 Speak AI response
-  const aiResponse = res.data.message;
-  const utterance = new SpeechSynthesisUtterance(aiResponse);
-  utterance.lang = language;
-  speechSynthesis.speak(utterance);
+      speakResponse(res.data.message);
 
-} catch (err) {
-setLoading(false);
-  setMessages(prev => [...prev, {
-    sender: "ai",
-    text: "Server Error"
-  }]);
+    } catch {
 
-}
+      setMessages(prev => [
+        ...prev,
+        {
+          sender: "ai",
+          text: "Server Error"
+        }
+      ]);
 
+    }
+
+    setLoading(false);
     setInput("");
 
   };
-const handleVoiceInput = async (transcript) => {
 
-  setInput(transcript);
+  const handleVoiceInput = async (transcript) => {
 
-  const userMsg = {
-    sender: "user",
-    text: transcript
+    setInput(transcript);
+
+    setMessages(prev => [
+      ...prev,
+      {
+        sender: "user",
+        text: transcript
+      }
+    ]);
+
+    setLoading(true);
+
+    try {
+
+      const res = await api.post("/ai", {
+        message: transcript,
+        language
+      });
+
+      setMessages(prev => [
+        ...prev,
+        {
+          sender: "ai",
+          text: res.data.message
+        }
+      ]);
+
+      speakResponse(res.data.message);
+
+    } catch {
+
+      setMessages(prev => [
+        ...prev,
+        {
+          sender: "ai",
+          text: "Server Error"
+        }
+      ]);
+
+    }
+
+    setLoading(false);
+    setInput("");
+
   };
 
-  setMessages(prev => [...prev, userMsg]);
-
-  try {
-
-    const res = await api.post("/ai", {
-      message: transcript,language
-    });
-
-    const aiMsg = {
-      sender: "ai",
-      text: res.data.message || JSON.stringify(res.data)
-    };
-
-    setMessages(prev => [...prev, aiMsg]);
-
-    const utterance = new SpeechSynthesisUtterance(res.data.message);
-    utterance.lang = language;
-    speechSynthesis.speak(utterance);
-
-  } catch (err) {
-
-    setMessages(prev => [...prev, {
-      sender: "ai",
-      text: "Server Error"
-    }]);
-
-  }
-
-  setInput("");
-
-};
   return (
 
     <div className="container">
 
-     <div className="header">
+      <div className="header">
 
-  <h1>🏥 AI Medical Assistant</h1>
+        <h1>🏥 AI Medical Assistant</h1>
 
-  <div className="language-selector">
+        <div className="language-selector">
 
-    <label>🌐</label>
+          <label>🌐</label>
 
-    <select
-      value={language}
-      onChange={(e) => setLanguage(e.target.value)}
-    >
-      <option value="en-US">English</option>
-      <option value="hi-IN">Hindi</option>
-      <option value="kn-IN">Kannada</option>
-    </select>
+          <select
+            value={language}
+            onChange={(e) => setLanguage(e.target.value)}
+          >
+            <option value="en-US">English</option>
+            <option value="hi-IN">Hindi</option>
+            <option value="kn-IN">Kannada</option>
+          </select>
 
-  </div>
+        </div>
 
-</div>
+      </div>
 
       <ChatBox
-    messages={messages}
-    loading={loading}
-/>
+        messages={messages}
+        loading={loading}
+      />
 
       <div className="input-area">
 
         <input
           value={input}
-          onChange={(e)=>setInput(e.target.value)}
+          onChange={(e) => setInput(e.target.value)}
           placeholder="Ask something..."
         />
 
-       <button
-    className="send-btn"
-    onClick={sendMessage}
->
+        <button
+          className="send-btn"
+          onClick={sendMessage}
+        >
+          Send
         </button>
 
       </div>
 
       <VoiceButton
-    onTranscript={handleVoiceInput}
-    language={language}
-/>
+        onTranscript={handleVoiceInput}
+        language={language}
+        voiceMode={voiceMode}
+        setVoiceMode={setVoiceMode}
+      />
 
     </div>
 

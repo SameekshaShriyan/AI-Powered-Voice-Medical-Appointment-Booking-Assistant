@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 
-function VoiceButton({ onTranscript, language }) {
+function VoiceButton({
+    onTranscript,
+    language,
+    voiceMode,
+    setVoiceMode
+}) {
 
     const [listening, setListening] = useState(false);
 
@@ -23,7 +28,24 @@ function VoiceButton({ onTranscript, language }) {
         };
 
         recognition.onend = () => {
+
             setListening(false);
+
+            // Continue listening only while voice mode is active
+            if (voiceMode && !speechSynthesis.speaking) {
+
+                setTimeout(() => {
+
+                    try {
+
+                        recognition.start();
+
+                    } catch {}
+
+                }, 500);
+
+            }
+
         };
 
         recognition.onerror = () => {
@@ -40,9 +62,9 @@ function VoiceButton({ onTranscript, language }) {
 
         window.recognition = recognition;
 
-    }, [language, onTranscript]);
+    }, [language, onTranscript, voiceMode]);
 
-    const startListening = () => {
+    const startCall = () => {
 
         if (!window.recognition) {
 
@@ -52,19 +74,56 @@ function VoiceButton({ onTranscript, language }) {
 
         }
 
+        speechSynthesis.cancel();
+
+        setVoiceMode(true);
+
         window.recognition.start();
+
+    };
+
+    const stopCall = () => {
+
+        setVoiceMode(false);
+
+        speechSynthesis.cancel();
+
+        if (window.recognition) {
+
+            window.recognition.stop();
+
+        }
+
+        setListening(false);
 
     };
 
     return (
 
-        <button
-            className={`voice-btn ${listening ? "listening" : ""}`}
-            onClick={startListening}
-            disabled={listening}
-        >
-            {listening ? "🎤 Listening..." : "🎤 Start Speaking"}
-        </button>
+        <div>
+
+            {
+                voiceMode ?
+
+                    <button
+                        className={`voice-btn ${listening ? "listening" : ""}`}
+                        onClick={stopCall}
+                    >
+                        {listening ? "🎤 Listening... (End Call)" : "🛑 End Call"}
+                    </button>
+
+                    :
+
+                    <button
+                        className="voice-btn"
+                        onClick={startCall}
+                    >
+                        📞 Start Voice Call
+                    </button>
+
+            }
+
+        </div>
 
     );
 
