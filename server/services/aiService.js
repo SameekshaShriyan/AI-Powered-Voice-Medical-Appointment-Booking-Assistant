@@ -1,13 +1,10 @@
-const { GoogleGenAI } = require("@google/genai");
+const llm = require("./llm");
 
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-});
+async function extractAppointmentDetails(userMessage, provider = "gemini") {
 
-async function extractAppointmentDetails(userMessage) {
-const today = new Date().toISOString().split("T")[0];
+    const today = new Date().toISOString().split("T")[0];
 
-const prompt = `
+    const prompt = `
 You are an AI hospital receptionist.
 
 Today's date is ${today}.
@@ -18,15 +15,21 @@ IMPORTANT:
 - Convert relative dates like "today", "tomorrow", "next Monday" into YYYY-MM-DD format.
 - Return ONLY valid JSON.
 - Do not wrap the JSON in markdown.
+
 Supported intents (IMPORTANT):
 - book
 - cancel
 - reschedule
 - availability
 - doctor_info
+- clinic_timings
 
 Return ONLY one of the above intent values.
-Do NOT return values like "book_appointment" or "cancel_appointment".
+
+Do NOT return values like:
+book_appointment
+cancel_appointment
+
 If the user asks:
 - Who is the cardiologist?
 - Which doctors are available?
@@ -45,7 +48,9 @@ If the user asks for all doctors:
  "intent":"doctor_info",
  "specialty":""
 }
- If the user asks:
+
+If the user asks:
+
 - What are your clinic timings?
 - When is the hospital open?
 - What are your working hours?
@@ -53,83 +58,88 @@ If the user asks for all doctors:
 Return:
 
 {
-  "intent":"clinic_timings"
+ "intent":"clinic_timings"
 }
+
 Return in this format:
 
 {
-  "intent":"",
-  "specialty":"",
-  "doctor":"",
-  "date":"",
-  "time":""
+ "intent":"",
+ "specialty":"",
+ "doctor":"",
+ "date":"",
+ "time":""
 }
+
 IMPORTANT:
 
-If the user only provides one missing detail like:
+If the user only provides ONE missing detail like:
 
-"Tomorrow"
-"9 AM"
-"Cardiologist"
-"Dr Rajesh Sharma"
+Tomorrow
 
-Return ONLY that field.
-
-Examples:
-
-User: Tomorrow
+Return
 
 {
-  "intent":"",
-  "specialty":"",
-  "doctor":"",
-  "date":"2026-07-09",
-  "time":""
+ "intent":"",
+ "specialty":"",
+ "doctor":"",
+ "date":"2026-07-09",
+ "time":""
 }
 
-User: 9 AM
+If user says
+
+9 AM
+
+Return
 
 {
-  "intent":"",
-  "specialty":"",
-  "doctor":"",
-  "date":"",
-  "time":"09:00"
+ "intent":"",
+ "specialty":"",
+ "doctor":"",
+ "date":"",
+ "time":"09:00"
 }
 
 User:
+
 ${userMessage}
 `;
 
-  const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash",
-    contents: prompt,
-  });
+    const response = await llm.generateContent(provider, prompt);
 
-  const text = response.text
-  .replace(/```json/g, "")
-  .replace(/```/g, "")
-  .trim();
+    const text = response
+        .replace(/```json/g, "")
+        .replace(/```/g, "")
+        .trim();
 
-return JSON.parse(text);
+    return JSON.parse(text);
+
 }
-async function translateResponse(message, language) {
 
-  if (language === "en-US") {
-    return message;
-  }
+async function translateResponse(message, language, provider = "gemini") {
 
-  let targetLanguage = "English";
+    if (language === "en-US") {
 
-  if (language === "hi-IN") {
-    targetLanguage = "Hindi";
-  }
+        return message;
 
-  if (language === "kn-IN") {
-    targetLanguage = "Kannada";
-  }
+    }
 
-  const prompt = `
+    let targetLanguage = "English";
+
+    if (language === "hi-IN") {
+
+        targetLanguage = "Hindi";
+
+    }
+
+    if (language === "kn-IN") {
+
+        targetLanguage = "Kannada";
+
+    }
+
+    const prompt = `
 Translate the following hospital assistant response into ${targetLanguage}.
 
 Rules:
@@ -141,14 +151,12 @@ Text:
 ${message}
 `;
 
-  const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash",
-    contents: prompt
-  });
+    const translated = await llm.generateContent(provider, prompt);
 
-  return response.text.trim();
+    return translated.trim();
 
 }
+
 module.exports = {
     extractAppointmentDetails,
     translateResponse

@@ -17,9 +17,9 @@ exports.chat = async (req, res) => {
 
     try {
 
-        const { message, language } = req.body;
+        const {message,language,llm = "gemini"} = req.body;
         const sessionId = "guest";
-        const ai = await extractAppointmentDetails(message);
+        const ai = await extractAppointmentDetails(message,llm);
         const request = updateConversation(sessionId, ai);
 
         console.log("Conversation State:", request);

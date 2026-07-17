@@ -1,132 +1,255 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import api from "../services/api";
 
 function VoiceButton({
-    onTranscript,
-    language,
-    voiceMode,
-    setVoiceMode
+
+onTranscript,
+
+language,
+
+callActive,
+
+voiceState,
+
+setVoiceState,
+
+sttProvider
+
 }) {
+  const recognitionRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+const audioChunksRef = useRef([]);
+const streamRef = useRef(null);
 
-    const [listening, setListening] = useState(false);
+  const [listening, setListening] = useState(false);
 
-    useEffect(() => {
+  useEffect(() => {
+    if(sttProvider!=="browser"){
 
-        const SpeechRecognition =
-            window.SpeechRecognition ||
-            window.webkitSpeechRecognition;
+console.log(`${sttProvider} selected`);
 
-        if (!SpeechRecognition) return;
+}
+    const SpeechRecognition =
+      window.SpeechRecognition ||
+      window.webkitSpeechRecognition;
 
-        const recognition = new SpeechRecognition();
+    if (!SpeechRecognition) {
+      alert("Speech Recognition is not supported in this browser.");
+      return;
+    }
 
-        recognition.continuous = false;
-        recognition.interimResults = false;
-        recognition.lang = language || "en-US";
+    const recognition = new SpeechRecognition();
 
-        recognition.onstart = () => {
-            setListening(true);
-        };
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = language || "en-US";
 
-        recognition.onend = () => {
+    recognition.onstart = () => {
+      setListening(true);
+      setVoiceState("listening");
+    };
 
-            setListening(false);
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
 
-            // Continue listening only while voice mode is active
-            if (voiceMode && !speechSynthesis.speaking) {
+      setVoiceState("processing");
 
-                setTimeout(() => {
+      onTranscript(transcript);
+    };
 
-                    try {
+    recognition.onerror = (event) => {
+      console.log("Speech Error:", event.error);
 
-                        recognition.start();
+      setListening(false);
 
-                    } catch {}
+      if (!callActive) return;
 
-                }, 500);
+      setTimeout(() => {
+        try {
+          recognition.start();
+        } catch {}
+      }, 1000);
+    };
 
-            }
+    recognition.onend = () => {
+      setListening(false);
 
-        };
+      if (!callActive) return;
 
-        recognition.onerror = () => {
-            setListening(false);
-        };
+      // Don't restart while AI is speaking
+      if (speechSynthesis.speaking) return;
 
-        recognition.onresult = (event) => {
+      setTimeout(() => {
+        try {
+          recognition.start();
+        } catch {}
+      }, 400);
+    };
 
-            const transcript = event.results[0][0].transcript;
+    recognitionRef.current = recognition;
+    window.recognition = recognition;
 
-            onTranscript(transcript);
+    return () => {
+      recognition.stop();
+    };
+  }, [language]);
 
-        };
+  // Auto start when user presses Start Call
+  useEffect(() => {
 
-        window.recognition = recognition;
+  if (!callActive) return;
 
-    }, [language, onTranscript, voiceMode]);
+  if (sttProvider === "deepgram") {
 
-    const startCall = () => {
+    startDeepgramRecording();
 
-        if (!window.recognition) {
+    return;
 
-            alert("Speech Recognition not supported.");
+  }
 
-            return;
+  if (!recognitionRef.current) return;
 
-        }
+  setTimeout(() => {
 
-        speechSynthesis.cancel();
+    try {
 
-        setVoiceMode(true);
+      recognitionRef.current.start();
 
-        window.recognition.start();
+    } catch {}
+
+  }, 300);
+
+}, [callActive]);
+
+  // Stop recognition when call ends
+  useEffect(() => {
+    if (callActive) return;
+
+    try {
+      recognitionRef.current?.stop();
+    } catch {}
+
+    speechSynthesis.cancel();
+
+    setListening(false);
+    setVoiceState("idle");
+  }, [callActive]);
+  console.log("Deepgram restarted", callActive);
+  const startDeepgramRecording = async () => {
+  if (!callActive) return;
+
+if (mediaRecorderRef.current?.state === "recording") {
+  return;
+}
+  try {
+
+    streamRef.current = await navigator.mediaDevices.getUserMedia({
+      audio: true,
+    });
+    
+
+    const recorder = new MediaRecorder(streamRef.current);
+
+    mediaRecorderRef.current = recorder;
+
+    audioChunksRef.current = [];
+
+    recorder.ondataavailable = (e) => {
+      audioChunksRef.current.push(e.data);
+    };
+
+    recorder.onstart = () => {
+      setListening(true);
+      setVoiceState("listening");
+    };
+
+    recorder.onstop = async () => {
+
+      setListening(false);
+
+      setVoiceState("processing");
+      
+
+      const blob = new Blob(audioChunksRef.current, {
+        type: "audio/webm",
+      });
+      mediaRecorderRef.current = null;
+      audioChunksRef.current = [];
+
+      const formData = new FormData();
+
+      formData.append("audio", blob, "voice.webm");
+
+      try {
+
+        const res = await api.post(
+          "/ai/transcribe",
+          formData
+        );
+
+        onTranscript(res.data.transcript);
+
+      } catch (err) {
+
+        console.error(err);
+
+        setVoiceState("idle");
+
+      }
+       streamRef.current
+        ?.getTracks()
+        .forEach(track => track.stop());
 
     };
 
-    const stopCall = () => {
+    recorder.start();
 
-        setVoiceMode(false);
+    setTimeout(() => {
 
-        speechSynthesis.cancel();
+      recorder.stop();
 
-        if (window.recognition) {
+    }, 5000);
 
-            window.recognition.stop();
+  } catch (err) {
 
-        }
+    console.error(err);
 
-        setListening(false);
+  }
 
-    };
+};
+useEffect(() => {
 
-    return (
+  window.startDeepgramRecording = startDeepgramRecording;
 
-        <div>
+  return () => {
+    delete window.startDeepgramRecording;
+  };
 
-            {
-                voiceMode ?
+}, [callActive, sttProvider]);
+  const interruptAI = () => {
+    // Stop AI speaking immediately
+    speechSynthesis.cancel();
 
-                    <button
-                        className={`voice-btn ${listening ? "listening" : ""}`}
-                        onClick={stopCall}
-                    >
-                        {listening ? "🎤 Listening... (End Call)" : "🛑 End Call"}
-                    </button>
+    try {
+      recognitionRef.current.start();
+    } catch {}
+  };
 
-                    :
-
-                    <button
-                        className="voice-btn"
-                        onClick={startCall}
-                    >
-                        📞 Start Voice Call
-                    </button>
-
-            }
-
-        </div>
-
-    );
-
+  return (
+    <div style={{ marginTop: "15px" }}>
+      {callActive && (
+        <button
+          className={`voice-btn ${listening ? "listening" : ""}`}
+          onClick={interruptAI}
+        >
+          {voiceState === "listening" && "🎤 Listening..."}
+          {voiceState === "processing" && "🧠 Processing..."}
+          {voiceState === "speaking" && "🔊 Speaking... (Tap to interrupt)"}
+          {voiceState === "idle" && "🎤 Ready"}
+        </button>
+      )}
+    </div>
+  );
 }
 
 export default VoiceButton;

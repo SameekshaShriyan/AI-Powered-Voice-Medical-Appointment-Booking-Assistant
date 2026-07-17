@@ -9,22 +9,44 @@ function App() {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [input, setInput] = useState("");
+
   const [language, setLanguage] = useState("en-US");
-  const [voiceMode, setVoiceMode] = useState(false);
+  const [sttProvider, setSttProvider] = useState("browser");
+  const [llmProvider, setLlmProvider] = useState("gemini");
 
-  const speakResponse = (text) => {
+  // NEW
+  const [callActive, setCallActive] = useState(false);
+  const [voiceState, setVoiceState] = useState("idle");
+  
 
-    if (!text) return;
+  // NEW
+const speakResponse = (text) => {
 
-    speechSynthesis.cancel();
+  if (!text) return;
 
-    const utterance = new SpeechSynthesisUtterance(text);
+  speechSynthesis.cancel();
 
-    utterance.lang = language;
+  const utterance = new SpeechSynthesisUtterance(text);
 
-    utterance.onend = () => {
+  utterance.lang = language;
 
-      if (voiceMode && window.recognition) {
+  setVoiceState("speaking");
+
+  utterance.onend = () => {
+
+    if (!callActive) {
+
+      setVoiceState("idle");
+      return;
+
+    }
+
+    setVoiceState("listening");
+
+    // Browser STT
+    if (sttProvider === "browser") {
+
+      if (window.recognition) {
 
         try {
           window.recognition.start();
@@ -32,11 +54,24 @@ function App() {
 
       }
 
-    };
+    }
 
-    speechSynthesis.speak(utterance);
+    // Deepgram STT
+    else {
+
+     console.log("Calling Deepgram again...", window.startDeepgramRecording);
+
+if (window.startDeepgramRecording) {
+  window.startDeepgramRecording();
+}
+
+    }
 
   };
+
+  speechSynthesis.speak(utterance);
+
+};
 
   const sendMessage = async () => {
 
@@ -56,7 +91,8 @@ function App() {
 
       const res = await api.post("/ai", {
         message: input,
-        language
+        language,
+        llm:llmProvider
       });
 
       setMessages(prev => [
@@ -102,9 +138,12 @@ function App() {
 
     try {
 
+      setVoiceState("processing");
+
       const res = await api.post("/ai", {
         message: transcript,
-        language
+        language,
+        llm:llmProvider
       });
 
       setMessages(prev => [
@@ -127,6 +166,8 @@ function App() {
         }
       ]);
 
+      setVoiceState("idle");
+
     }
 
     setLoading(false);
@@ -142,22 +183,70 @@ function App() {
 
         <h1>🏥 AI Medical Assistant</h1>
 
-        <div className="language-selector">
+       <div className="controls">
 
-          <label>🌐</label>
+  <div className="control-group">
 
-          <select
-            value={language}
-            onChange={(e) => setLanguage(e.target.value)}
-          >
-            <option value="en-US">English</option>
-            <option value="hi-IN">Hindi</option>
-            <option value="kn-IN">Kannada</option>
-          </select>
+    <label>🌐 Language</label>
+
+    <select
+      value={language}
+      onChange={(e) => setLanguage(e.target.value)}
+    >
+      <option value="en-US">English</option>
+      <option value="hi-IN">Hindi</option>
+      <option value="kn-IN">Kannada</option>
+    </select>
+
+  </div>
+
+  <div className="control-group">
+
+    <label>🎤 STT</label>
+
+    <select
+      value={sttProvider}
+      onChange={(e) => setSttProvider(e.target.value)}
+    >
+      <option value="browser">Browser STT</option>
+      <option value="deepgram">Deepgram</option>
+  
+    </select>
+
+  </div>
+
+  <div className="control-group">
+
+    <label>🧠 LLM</label>
+
+    <select
+      value={llmProvider}
+      onChange={(e) => setLlmProvider(e.target.value)}
+    >
+      <option value="gemini">Gemini 2.5 Flash</option>
+      <option value="gpt">GPT-4o Mini</option>
+      <option value="claude">Claude Sonnet</option>
+    </select>
+
+  </div>
+
+</div>
+
+      </div>
+
+      {callActive && (
+
+        <div className="voice-status">
+
+          {voiceState === "listening" && "🎤 Listening..."}
+
+          {voiceState === "processing" && "🧠 Processing..."}
+
+          {voiceState === "speaking" && "🔊 Speaking..."}
 
         </div>
 
-      </div>
+      )}
 
       <ChatBox
         messages={messages}
@@ -181,11 +270,52 @@ function App() {
 
       </div>
 
+      <div className="call-controls">
+
+        {!callActive ? (
+
+          <button
+            className="call-btn start"
+            onClick={() => setCallActive(true)}
+          >
+            📞 Start Call
+          </button>
+
+        ) : (
+
+          <button
+            className="call-btn end"
+            onClick={() => {
+
+              setCallActive(false);
+
+              setVoiceState("idle");
+
+              speechSynthesis.cancel();
+
+              if (window.recognition) {
+
+                window.recognition.stop();
+
+              }
+
+            }}
+          >
+            ❌ End Call
+          </button>
+
+        )}
+
+      </div>
+
       <VoiceButton
         onTranscript={handleVoiceInput}
         language={language}
-        voiceMode={voiceMode}
-        setVoiceMode={setVoiceMode}
+        callActive={callActive}
+        voiceState={voiceState}
+        setVoiceState={setVoiceState}
+        sttProvider={sttProvider}
+        llmProvider={llmProvider}
       />
 
     </div>
