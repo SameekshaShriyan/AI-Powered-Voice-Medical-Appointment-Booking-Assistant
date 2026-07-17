@@ -111,7 +111,7 @@ if (window.startDeepgramRecording) {
         ...prev,
         {
           sender: "ai",
-          text: "Server Error"
+          text: "⚠️ AI service has reached its free daily limit. Please try again later"
         }
       ]);
 
@@ -162,7 +162,7 @@ if (window.startDeepgramRecording) {
         ...prev,
         {
           sender: "ai",
-          text: "Server Error"
+          text: "⚠️ AI service has reached its free daily limit. Please try again later"
         }
       ]);
 
